@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" == "dev" ]]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BACKEND_DIR="$REPO_ROOT/server"
+
+usage() {
+  cat <<EOF
+AI Interviewer Frontend (code/) Run Help (non-interactive)
+
+Frontend commands you can run manually:
+  # Start Vite dev server
   npm run dev
-  exit $?
-elif [[ "${1:-}" == "deploy" ]]; then
+
+  # Build (if build script exists)
+  npm run build
+
+  # Deploy (GitHub Pages or other) if configured
   npm run deploy
-  exit $?
-fi
 
-echo "Select option:"
-echo "  1) Start dev server (npm run dev)"
-echo "  2) Deploy to GitHub Pages (build + publish)"
-read -rp "Choice [1-2]: " choice
+Recommended STT development workflow:
+  1. In another terminal, read server/run.sh for backend instructions and start backend.
+  2. Here run: npm run dev
+  3. Open browser -> STT page.
 
-case "$choice" in
-  1) npm run dev ;;
-  2) npm run deploy ;;
-  *) echo "Invalid choice" >&2; exit 1 ;;
-esac
+Backend instructions have moved to: ../server/run.sh
+
+This script only prints help; it performs no actions automatically.
+EOF
+}
+
+usage
