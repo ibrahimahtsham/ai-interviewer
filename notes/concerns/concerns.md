@@ -1,0 +1,4 @@
+- is there any way the system can be cheated, can you manipulate the ai into giving u the answers to the question?
+- how do we make sure then this is looked over.
+- and if its looked over then its not fully automatic.
+- does that still fulfill our purpose?
