@@ -1,8 +1,9 @@
-export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 4096 } = {}) {
+export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 4096, onSamples } = {}) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext
   const ctx = new AudioCtx({ sampleRate })
   let stopped = false
   let source, proc, stream
+  const lastSamplesRef = { current: new Float32Array() }
 
   const init = async () => {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
@@ -11,6 +12,9 @@ export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 40
     proc.onaudioprocess = (ev) => {
       if (stopped) return
       const input = ev.inputBuffer.getChannelData(0)
+      // Keep a copy for visualization
+      lastSamplesRef.current = input.slice ? input.slice() : new Float32Array(input)
+      onSamples && onSamples(lastSamplesRef.current)
       const pcm = new Int16Array(input.length)
       for (let i = 0; i < input.length; i++) {
         let s = input[i]
@@ -31,5 +35,5 @@ export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 40
     stream && stream.getTracks().forEach(t => t.stop())
     if (ctx && ctx.state !== 'closed') await ctx.close()
   }
-  return { ready, stop }
+  return { ready, stop, lastSamplesRef }
 }

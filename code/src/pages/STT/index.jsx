@@ -5,6 +5,7 @@ import { TranscriptDisplay } from './components/TranscriptDisplay.jsx'
 import { StatusBar } from './components/StatusBar.jsx'
 import { startAudioCapture } from './utils/audio.js'
 import { createSTTClient } from './utils/wsClient.js'
+import { Waveform } from './components/Waveform.jsx'
 
 export default function STTPage() {
   const [running, setRunning] = useState(false)
@@ -14,6 +15,7 @@ export default function STTPage() {
   const [backendStatus, setBackendStatus] = useState('disconnected')
   const audioRef = useRef(null)
   const sttRef = useRef(null)
+  const waveformRef = useRef({ current: new Float32Array() })
 
   const clearAll = () => {
     setPartial('')
@@ -33,8 +35,11 @@ export default function STTPage() {
         onClose: () => setBackendStatus('disconnected')
       })
       sttRef.current = client
-      const audio = startAudioCapture(frame => client.sendPCM(frame))
+      const audio = startAudioCapture(frame => client.sendPCM(frame), {
+        onSamples: (floats) => { waveformRef.current.current = floats }
+      })
       audioRef.current = audio
+      waveformRef.current = audio.lastSamplesRef
       await audio.ready
       setRunning(true)
     } catch (e) {
@@ -54,7 +59,8 @@ export default function STTPage() {
     <Box sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>Speech To Text (Local)</Typography>
       <MicControls running={running} onStart={start} onFlush={flush} onStop={stop} onClear={clearAll} />
-      <TranscriptDisplay partial={partial} finals={finals} />
+  <Waveform samplesRef={waveformRef.current} />
+  <TranscriptDisplay partial={partial} finals={finals} />
       <StatusBar running={running} backendStatus={backendStatus} error={error} model="tiny.en:int8" />
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
         Backend: see server/run.sh (start backend first) then npm run dev here.

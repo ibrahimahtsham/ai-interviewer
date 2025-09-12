@@ -34,6 +34,15 @@ export default function Navbar() {
         >
           LLM
         </Button>
+        <Button
+          component={RouterLink}
+          to="/mic-test"
+          color={isActive('/mic-test') ? 'primary' : 'inherit'}
+          variant={isActive('/mic-test') ? 'contained' : 'text'}
+          sx={{ textTransform: 'none', mr: 'auto' }}
+        >
+          Mic Test
+        </Button>
         <Tooltip title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
           <IconButton color="inherit" onClick={toggleColorMode} aria-label="toggle dark mode">
             {isDark ? <LightModeIcon /> : <DarkModeIcon />}
