@@ -2,3 +2,5 @@
 - how do we make sure then this is looked over.
 - and if its looked over then its not fully automatic.
 - does that still fulfill our purpose?
+- in case we use hosting then the speed isnt really in our control and to give a real feel it does need to be pretty real time like as soon as i am done talking the ai interviewer should then respond to me, give feedback, ask other questions etc. if we run it locally then... i guess it will just have to be running in a local office envoirnment, we wont be able to like interview someone remotely using this tool, they will have to come to a physicaly location where the pc is on which the llm is running on.
+- i see this beind done in 2 ways, either fully locally with a power pc or fully hosted online.
