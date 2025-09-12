@@ -1,55 +1,33 @@
-# Speech-to-Text Options
+# Speech-to-Text (Current Understanding)
 
-## 1. Web Speech API (Browser)
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## STT 1 — Web Speech API (Browser)
+- Free: Yes
+- Adv.: Fastest demo in Chrome.
+- Disadv.: Spotty support / quotas.
 
-## 2. Whisper Large-v3 (faster-whisper / whisper.cpp)
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## STT 2 — Whisper Large-v3 / faster-whisper / whisper.cpp (Local)
+- Free: Yes
+- Adv.: Top accuracy, great with accents/noise, offline.
+- Disadv.: Heavier setup / CPU.
 
-## 3. Google Speech-to-Text v2
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## STT 3 — Google Speech-to-Text v2
+- Free: Trial / credits
+- Adv.: Excellent streaming + punctuation.
+- Disadv.: Paid after credits.
 
-## 4. Azure Speech-to-Text
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## STT 4 — Azure Speech-to-Text
+- Free: Hours/mo
+- Adv.: Strong accuracy / SDKs.
+- Disadv.: Azure setup, pay-as-you-go later.
 
-## 5. Deepgram
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## STT 5 — Deepgram
+- Free: Credits
+- Adv.: Fast + accurate streaming.
+- Disadv.: Paid after credits.
 
-## 6. Amazon Transcribe
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
-
-## Comparison Axes (To Fill)
-| Option | Offline | Streaming Partials | Latency (est) | Cost Profile | Setup Complexity |
-|--------|---------|-------------------|---------------|--------------|------------------|
-| Web Speech API | No | Yes (varies) | Low | Free | Very Low |
-| Whisper Local | Yes | Yes (custom) | Medium | Hardware only | Medium |
-| Google STT | No | Yes | Low-Med | Paid | Medium |
-| Azure STT | No | Yes | Low-Med | Paid | Medium |
-| Deepgram | No | Yes | Low | Paid | Low |
-| Amazon Transcribe | No | Yes | Med | Paid | Medium |
+## STT 6 — Amazon Transcribe
+- Free: Temporary tier
+- Adv.: Easy AWS fit.
+- Disadv.: Free ends after 12 months.
 
 ---

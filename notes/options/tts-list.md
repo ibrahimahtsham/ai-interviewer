@@ -1,55 +1,33 @@
-# Text-to-Speech Options
+# Text-to-Speech (Current Understanding)
 
-## 1. Web speechSynthesis (Browser)
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## TTS 1 — Web speechSynthesis (Browser)
+- Free: Yes
+- Adv.: Instant, no keys.
+- Disadv.: Voice quality varies per device.
 
-## 2. ElevenLabs
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## TTS 2 — ElevenLabs
+- Free: Limited
+- Adv.: Very natural, realtime.
+- Disadv.: Small free quota.
 
-## 3. Azure Neural TTS
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## TTS 3 — Azure Neural TTS
+- Free: Generous tier
+- Adv.: Big catalog, SSML control.
+- Disadv.: Per-char cost after free.
 
-## 4. Google Text-to-Speech
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## TTS 4 — Google Text-to-Speech
+- Free: Quota
+- Adv.: WaveNet / Neural2.
+- Disadv.: Billing after quota.
 
-## 5. Amazon Polly
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
+## TTS 5 — Amazon Polly
+- Free: Temporary tier
+- Adv.: Broad languages.
+- Disadv.: Free ends → pay-as-you-go.
 
-## 6. Piper / Coqui (Local)
-- Free: ✎
-- Pros: ✎
-- Cons: ✎
-- Notes: ✎
-- Status: ✎
-
-## Comparison Axes (To Fill)
-| Option | Offline | Streaming | Latency (First Byte) | Expressiveness | Cost Control |
-|--------|---------|-----------|----------------------|----------------|--------------|
-| Browser speechSynthesis | No | Limited | Low | Low-Med | Free |
-| ElevenLabs | No | Yes | Low | High | Paid |
-| Azure Neural | No | Yes | Low-Med | High | Paid |
-| Google TTS | No | Yes | Low-Med | Med | Paid |
-| Amazon Polly | No | Partial | Med | Med | Paid |
-| Piper / Coqui | Yes | Yes (local chunking) | Very Low | Med | Hardware only |
+## TTS 6 — Piper / Coqui (Local)
+- Free: Yes
+- Adv.: Offline / privacy.
+- Disadv.: Setup + voice quality varies.
 
 ---
