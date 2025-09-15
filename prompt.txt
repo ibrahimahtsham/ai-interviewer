@@ -1,139 +1,107 @@
-AI Interviewer — Project Prompt (MVP-first)
+AI Interviewer — Project Structure (Concise)
 
-Your job is to create a tiny, clone-and-run local Streamlit app that proves the UI and backend can talk to each other with one command. Keep it simple first, then we’ll iterate to the full feature set below.
-
-First task (MVP you will implement now)
-
-- Goal: Minimal app that runs with a single script and verifies end-to-end flow UI → backend → UI.
-- What to build:
-	- A Streamlit page with a title and a single button: “Run backend test”.
-	- When clicked, call a small backend function that returns a fake transcript, a fake interviewer reply, and a tiny wav sound (generated in code, e.g., a short sine beep) to simulate TTS.
-	- Show the transcript and reply as text, and play the generated wav with st.audio.
-	- No heavy dependencies yet (no Whisper, Ollama, or Piper in MVP). Pure Python only.
-- Files to create:
-	- app.py (Streamlit UI + call into a backend function)
-	- ai_interviewer/ (Python package)
-		- __init__.py
-		- backend.py (with simple functions: make_transcript_stub(), make_reply_stub(), make_beep_wav_bytes())
-	- requirements.txt (start with: streamlit only)
-	- run.sh (Linux/macOS): create venv, install requirements, run streamlit
-	- run.ps1 (Windows): same as above for PowerShell
-	- README.md: short quickstart with one section per OS
-- Single-command run:
-	- Linux/macOS: ./run.sh
-	- Windows (PowerShell): .\run.ps1
-- Acceptance criteria (for this MVP):
-	- Cloning the repo and running the one command opens a Streamlit app.
-	- Clicking the button shows a hard-coded transcript and reply, and plays a short audio beep.
-	- Works on Linux, macOS, and Windows with only Python 3.10+ and Streamlit installed via the script.
-
-What it is (full vision)
-
-A local Streamlit app that acts like an “AI interviewer”. I speak, it transcribes (STT), sends the transcript to a local LLM for an interviewer-style reply, then speaks the reply back (TTS). English only.
-
-How I want it deployed (local-only)
-
-- Single Streamlit app the user runs locally with a simple command.
-- Everything runs on the user’s machine (no GitHub Pages, no cloud).
-- No CORS/TLS complexity needed because UI and logic are in one app.
-
-How it should work (PoC)
-
-- Start/Stop button to record my whole answer in one go (microphone capture in the browser).
-- When I press Stop, the app runs STT → gets transcript (English only).
-- Feed transcript to LLM with a system prompt like: “You are an interviewer for X person for Y job. Always respond in English.”
-- Take the LLM reply and run TTS (English voice).
-- Play the audio reply and also show the text on screen.
-
-Controls in the UI
-
-- Choose STT model size (lighter vs heavier for CPU/GPU).
-- Choose LLM model (from local models installed in Ollama).
-- Choose TTS voice (English voices).
-- These choices should affect what actually runs.
-
-English-only behavior
-
-- STT runs with language set to English (no auto-detect, no translation).
-- LLM receives a system rule to respond only in English.
-- TTS uses an English voice (en_US or en_GB, etc.).
-
-Tools & technologies (concise)
-
-- Python 3.10+
-- Streamlit (UI)
-- Microphone capture: one of
-	- streamlit-webrtc (stable, supports recording/playback), or
-	- streamlit-mic-recorder (simple voice capture component)
-- STT: faster-whisper (CTranslate2) + ffmpeg
-- LLM: Ollama (local models like llama3, mistral, qwen2.5, phi4)
-- TTS: piper-tts with English voices (fast, offline)
-- Optional: CUDA for GPU acceleration (faster-whisper and Ollama can use GPU)
-
-After MVP: next tasks (high level)
-
-1) Replace stubs with real components
-	 - STT: faster-whisper (force language='en').
-	 - LLM: call Ollama local model with a system prompt enforcing English.
-	 - TTS: Piper voice; play wav in-app.
-2) Add a simple onboarding/setup
-	 - First run asks for Low/Mid/High profile and auto-downloads recommended models.
-	 - Write .env with STT_MODEL, LLM_MODEL, PIPER_VOICE.
-3) Add preflight checks (optional)
-	 - Check ffmpeg, piper, ollama availability; show friendly errors.
-4) Add tests and docs
-	 - A tiny smoke test for backend stubs and a quick README “Quickstart”.
-
-Goal
-
-- Anyone can clone the repo and run the Streamlit app locally for free on their own computer.
-- The app records, transcribes, generates an interviewer response, and speaks it back in English, with simple model/voice controls.
-- Start tiny (MVP above), then iterate to the full PoC.
 What it is
 
-A local Streamlit app that acts like an “AI interviewer”. I speak, it transcribes (STT), sends the transcript to a local LLM for an interviewer-style reply, then speaks the reply back (TTS). English only.
+- A local Streamlit app that acts like an “AI interviewer”. You speak, it transcribes (STT), sends the transcript to a local LLM for an interviewer-style reply, then speaks the reply back (TTS). English only.
 
-How I want it deployed (local-only)
+How it’s deployed (local-only)
 
 - Single Streamlit app the user runs locally with a simple command.
-- Everything runs on the user’s machine (no GitHub Pages, no cloud).
-- No CORS/TLS complexity needed because UI and logic are in one app.
+- Everything runs on the user’s machine (no cloud required).
+- No CORS/TLS complexity because UI and logic are in one app.
 
-How it should work (PoC)
+Core flow
 
-- Start/Stop button to record my whole answer in one go (microphone capture in the browser).
-- When I press Stop, the app runs STT → gets transcript (English only).
-- Feed transcript to LLM with a system prompt like: “You are an interviewer for X person for Y job. Always respond in English.”
-- Take the LLM reply and run TTS (English voice).
-- Play the audio reply and also show the text on screen.
+1) Record audio in browser (start/stop single answer).
+2) STT → English transcript.
+3) LLM → interviewer-style reply (English only, enforced by system prompt).
+4) TTS → synthesize reply audio.
+5) Show reply text and play audio in the UI.
 
 Controls in the UI
 
 - Choose STT model size (lighter vs heavier for CPU/GPU).
-- Choose LLM model (from local models installed in Ollama).
+- Choose LLM model from local Ollama.
 - Choose TTS voice (English voices).
-- These choices should affect what actually runs.
 
 English-only behavior
 
-- STT runs with language set to English (no auto-detect, no translation).
-- LLM receives a system rule to respond only in English.
-- TTS uses an English voice (en_US or en_GB, etc.).
+- STT: language='en' (no auto-detect/translation).
+- LLM: system prompt enforces English-only responses.
+- TTS: English voice (en_US or en_GB, etc.).
 
 Tools & technologies (concise)
 
 - Python 3.10+
 - Streamlit (UI)
-- Microphone capture: one of
-	- streamlit-webrtc (stable, supports recording/playback), or
-	- streamlit-mic-recorder (simple voice capture component)
+- Mic capture: streamlit-webrtc or streamlit-mic-recorder
 - STT: faster-whisper (CTranslate2) + ffmpeg
-- LLM: Ollama (local models like llama3, mistral, qwen2.5, phi4)
-- TTS: piper-tts with English voices (fast, offline)
-- Optional: CUDA for GPU acceleration (faster-whisper and Ollama can use GPU)
+- LLM: Ollama (local models: llama3, mistral, qwen2.5, phi4)
+- TTS: piper-tts (English voices)
+- Optional: CUDA for GPU acceleration
 
-Goal
+Project structure (baseline)
 
-- Anyone can clone the repo and run the Streamlit app locally for free on their own computer.
-- The app records, transcribes, generates an interviewer response, and speaks it back in English, with simple model/voice controls.
+root/
+- app.py                        # Streamlit entrypoint (UI wiring)
+- ai_interviewer/               # Python package
+	- __init__.py
+	- config.py                  # Config helpers (env, defaults)
+	- preflight.py               # Environment checks (ffmpeg, ollama, piper)
+	- audio/
+		- io_utils.py              # WAV helpers, conversions
+	- stt/
+		- __init__.py
+		- faster_whisper.py        # STT implementation (en, model selection)
+	- llm/
+		- __init__.py
+		- ollama_client.py         # Local LLM calls with system prompt
+	- tts/
+		- __init__.py
+		- piper_tts.py             # Piper integration (voice selection)
+	- ui/
+		- __init__.py
+		- components.py            # Reusable Streamlit UI pieces
+- scripts/
+	- run.sh                     # Create venv, install deps, run app (Linux/macOS)
+	- run.ps1                    # Same for Windows PowerShell
+- requirements.txt             # Runtime deps (streamlit, requests, etc.)
+- requirements-dev.txt         # Dev extras (pytest, black, mypy) [optional]
+- .env.example                 # Example environment variables
+- .streamlit/
+	- config.toml                # Theme, runOnSave, telemetry settings
+- tests/
+	- test_stubs.py              # Smoke tests and core unit tests
+- README.md                    # Quickstart, usage, troubleshooting
+- LICENSE                      # Project license
 
+Configuration & defaults
+
+- .env (not committed) defines STT_MODEL, LLM_MODEL, PIPER_VOICE, etc.
+- .streamlit/config.toml sets theme, runOnSave, headless.
+- app.py reads config via ai_interviewer.config.
+
+Preflight checks (optional but recommended)
+
+- On first run, check availability: ffmpeg, ollama, piper, model files.
+- Show friendly guidance if missing (install steps, env hints).
+
+Coding guidelines
+
+- Keep app.py thin: UI and orchestration only.
+- Put integrations in ai_interviewer/stt|llm|tts modules with clear function contracts (pure functions where practical).
+- Prefer dependency injection (e.g., pass model/voice names from UI to services).
+- Handle errors with clear messages surfaced in the UI.
+
+Testing
+
+- Add smoke tests for basic imports and simple functions.
+- Unit-test parsing/wrapping logic for STT/LLM/TTS modules (mock external binaries/services).
+
+Next steps (implementation roadmap, high level)
+
+1) Build mic capture UI and wire to STT (English).
+2) Add Ollama call with system prompt enforcing English reply.
+3) Add Piper TTS output and playback.
+4) Add model/voice selectors with persisted defaults.
+5) Add onboarding/setup to download recommended models.
