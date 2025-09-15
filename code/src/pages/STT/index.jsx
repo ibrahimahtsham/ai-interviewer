@@ -50,8 +50,12 @@ export default function STTPage() {
         onLog: (entry) => pushLog(entry)
       })
       sttRef.current = client
+      // Say hello with UA and page info
+      client.sendMeta({ kind: 'hello', ua: navigator.userAgent, page: 'STT' })
+
       const audio = startAudioCapture(frame => client.sendPCM(frame), {
-        onSamples: (floats) => { waveformRef.current.current = floats }
+        onSamples: (floats) => { waveformRef.current.current = floats },
+        onStats: (s) => client.sendMeta(s)
       })
       audioRef.current = audio
       waveformRef.current = audio.lastSamplesRef

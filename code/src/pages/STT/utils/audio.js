@@ -1,4 +1,4 @@
-export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 4096, onSamples } = {}) {
+export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 4096, onSamples, onStats } = {}) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext
   const ctx = new AudioCtx({ sampleRate })
   let stopped = false
@@ -6,7 +6,14 @@ export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 40
   const lastSamplesRef = { current: new Float32Array() }
 
   const init = async () => {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    })
     source = ctx.createMediaStreamSource(stream)
     proc = ctx.createScriptProcessor(bufferSize, 1, 1)
     proc.onaudioprocess = (ev) => {
@@ -16,15 +23,26 @@ export function startAudioCapture(onFrame, { sampleRate = 16000, bufferSize = 40
       lastSamplesRef.current = input.slice ? input.slice() : new Float32Array(input)
       onSamples && onSamples(lastSamplesRef.current)
       const pcm = new Int16Array(input.length)
+      let sum = 0, peak = 0
       for (let i = 0; i < input.length; i++) {
         let s = input[i]
         s = s < -1 ? -1 : s > 1 ? 1 : s
+        sum += s * s
+        const a = Math.abs(s); if (a > peak) peak = a
         pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+      }
+      if (onStats) {
+        const rms = Math.sqrt(sum / (input.length || 1))
+        onStats({ kind: 'frame', ctxRate: ctx.sampleRate, bufferSize, frameSamples: input.length, rms, peak })
       }
       onFrame(pcm)
     }
-    source.connect(proc)
-    proc.connect(ctx.destination)
+  source.connect(proc)
+  // Mute processor output to avoid feedback, but keep node connected so onaudioprocess fires
+  const silent = ctx.createGain()
+  silent.gain.value = 0
+  proc.connect(silent)
+  silent.connect(ctx.destination)
     return stream
   }
 
