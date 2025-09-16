@@ -19,7 +19,6 @@ def main():
 	st.session_state.setdefault("timeout_s", int(os.getenv("OLLAMA_TIMEOUT", "600")))
 	st.session_state.setdefault("model", cfg.llm_model)
 	st.session_state.setdefault("messages", [])
-	st.session_state.setdefault("console", [])
 
 	tab_interview, tab_llm = st.tabs(["Interview", "LLM Setup"])
 

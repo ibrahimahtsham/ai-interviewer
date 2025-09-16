@@ -19,6 +19,8 @@ import platform
 import stat
 import json
 import os
+import signal
+from pathlib import Path
 
 try:
     import requests  # type: ignore
@@ -195,11 +197,186 @@ def start_ollama_server(cmd: Optional[str] = None) -> Tuple[bool, str, Optional[
             stderr=subprocess.STDOUT,
             start_new_session=True,  # detach process group on POSIX
         )
+        # Record PID so we can stop it later
+        try:
+            if proc and proc.pid:
+                _write_pidfile(proc.pid)
+        except Exception:
+            pass
         # Give it a moment to boot
         time.sleep(0.5)
         return True, "Ollama server starting", proc
     except Exception as e:
         return False, f"Failed to start ollama serve: {e}", None
+
+
+# --- Managed stop helpers ---
+
+def _state_dir() -> Path:
+    p = Path(os.path.expanduser("~/.cache/ai-interviewer"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _pidfile_path() -> Path:
+    return _state_dir() / "ollama.pid"
+
+
+def _write_pidfile(pid: int) -> None:
+    try:
+        _pidfile_path().write_text(str(pid), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _read_pidfile() -> Optional[int]:
+    try:
+        s = _pidfile_path().read_text(encoding="utf-8").strip()
+        return int(s) if s else None
+    except Exception:
+        return None
+
+
+def _clear_pidfile() -> None:
+    try:
+        _pidfile_path().unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def stop_ollama_server(host: Optional[str] = None) -> Tuple[bool, str]:
+    """Stop a managed Ollama server previously started by start_ollama_server().
+    Returns (ok, message).
+    """
+    pid = _read_pidfile()
+    if pid is None:
+        # Fallback: try to stop any running Ollama instance (may require permissions)
+        # 1) Try systemd (user service first, then system service)
+        try:
+            if shutil.which("systemctl"):
+                for args in (("--user",), tuple()):
+                    try:
+                        res = subprocess.run(["systemctl", *args, "stop", "ollama"], capture_output=True, text=True, timeout=5)
+                        if res.returncode == 0:
+                            # Give it a moment and verify
+                            time.sleep(0.3)
+                            ok_check, _ = ollama_is_running(host)
+                            if not ok_check:
+                                return True, "Ollama stopped via systemctl"
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 2) Process-name based termination on POSIX
+        if os.name != "nt":
+            try:
+                # Find candidate PIDs for 'ollama' processes
+                pids: list[int] = []
+                if shutil.which("pgrep"):
+                    for pattern in ("^ollama$", "ollama serve"):
+                        try:
+                            res = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, timeout=5)
+                            if res.returncode == 0:
+                                for line in res.stdout.strip().splitlines():
+                                    try:
+                                        pids.append(int(line.strip()))
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                # Deduplicate
+                pids = sorted(set(pids))
+                if not pids:
+                    # Nothing obvious to kill
+                    ok_check, _ = ollama_is_running(host)
+                    if ok_check:
+                        return False, "Ollama appears to be running but no PID found. It may be a system service; try: sudo systemctl stop ollama"
+                    return True, "No Ollama process found"
+
+                # Try graceful stop
+                for p in pids:
+                    try:
+                        os.killpg(p, signal.SIGTERM)
+                    except Exception:
+                        try:
+                            os.kill(p, signal.SIGTERM)
+                        except Exception:
+                            pass
+                for _ in range(20):
+                    ok_check, _ = ollama_is_running(host)
+                    if not ok_check:
+                        break
+                    time.sleep(0.25)
+                ok_check, _ = ollama_is_running(host)
+                if ok_check:
+                    # Force kill
+                    for p in pids:
+                        try:
+                            os.killpg(p, signal.SIGKILL)
+                        except Exception:
+                            try:
+                                os.kill(p, signal.SIGKILL)
+                            except Exception:
+                                pass
+                    time.sleep(0.25)
+                    ok_check, _ = ollama_is_running(host)
+                if not ok_check:
+                    return True, "Ollama stopped"
+                return False, "Failed to stop Ollama (permission required?)"
+            except Exception as e:
+                return False, f"Stop error: {e}"
+
+        # 3) Windows: kill by image name if pidfile missing
+        try:
+            res = subprocess.run(["taskkill", "/IM", "ollama.exe", "/F"], capture_output=True, text=True)
+            ok_check, _ = ollama_is_running(host)
+            if not ok_check:
+                return True, "Stopped ollama.exe"
+            msg = res.stdout.strip() or res.stderr.strip() or "taskkill executed"
+            return False, msg
+        except Exception:
+            return False, "No managed process and fallback stop failed"
+
+    try:
+        if os.name != "nt":
+            # Try to terminate process group first (created by start_new_session)
+            try:
+                os.killpg(pid, signal.SIGTERM)
+            except Exception:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except Exception:
+                    pass
+            # Wait briefly for shutdown
+            for _ in range(20):
+                ok, _ = ollama_is_running(host)
+                if not ok:
+                    break
+                time.sleep(0.25)
+            ok, _ = ollama_is_running(host)
+            if ok:
+                # Escalate to SIGKILL
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                except Exception:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except Exception:
+                        pass
+                time.sleep(0.25)
+                ok, _ = ollama_is_running(host)
+            _clear_pidfile()
+            return (not ok), ("Ollama stopped" if not ok else "Failed to stop Ollama")
+        else:
+            # Windows: use taskkill to kill tree
+            res = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True)
+            _clear_pidfile()
+            ok, _ = ollama_is_running(host)
+            msg = res.stdout.strip() or res.stderr.strip() or "Stopped"
+            return (not ok), (msg if res.returncode == 0 else f"taskkill exited {res.returncode}: {msg}")
+    except Exception as e:
+        return False, f"Stop error: {e}"
 
 
 def pull_ollama_model(model: str, cmd: Optional[str] = None):

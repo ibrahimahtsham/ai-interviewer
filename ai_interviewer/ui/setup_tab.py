@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-import html
 import streamlit as st
-import streamlit.components.v1 as components
 
 from ai_interviewer.llm import (
     has_ollama_cli,
@@ -11,6 +9,7 @@ from ai_interviewer.llm import (
     ollama_list_models,
     ollama_quick_test,
     start_ollama_server,
+    stop_ollama_server,
     pull_ollama_model,
     pull_ollama_model_http,
     install_ollama_user_local,
@@ -20,11 +19,8 @@ from ai_interviewer.llm import (
 from ai_interviewer.utils.ui import (
     pc_profile_model_candidates,
     choose_model_for_profile,
-    append_console,
     parse_percent,
     get_model_size_label,
-    open_external_console,
-    get_console_log_path,
 )
 from ai_interviewer.profiles import PCProfile, PROFILE_LABELS, normalize_profile
 
@@ -62,42 +58,6 @@ def render_setup_tab():
     st.header("LLM Setup")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
 
-    # Console controls and live output
-    console_container = st.container()
-    with console_container:
-        st.subheader("Console")
-        cc1, cc2 = st.columns([1, 1])
-        with cc1:
-            st.checkbox("Show console in browser", key="show_browser_console", value=False)
-        with cc2:
-            if st.button("Open external console window"):
-                log_path = get_console_log_path(st.session_state)
-                ok, msg = open_external_console(log_path)
-                append_console(msg, st.session_state)
-                if ok:
-                    st.info(f"{msg} Log: {log_path}")
-                else:
-                    st.warning(msg)
-        console_box = st.empty()
-
-    def refresh_console():
-        if not st.session_state.get("show_browser_console", False):
-            path = get_console_log_path(st.session_state)
-            with console_box:
-                st.caption(f"Console is streaming to: {path}")
-            return
-        logs = "\n".join(st.session_state.get("console", []))
-        escaped = html.escape(logs)
-        html_block = (
-            '<div id="console-box" style="height:220px; overflow-y:auto; padding:8px; border:1px solid #374151; border-radius:6px; background: var(--background-color, #111827); color: var(--text-color, #e5e7eb); white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \'Liberation Mono\', \'Courier New\', monospace;">%s</div>'
-            '<script>(function(){var el=document.getElementById("console-box"); if(el){ el.scrollTop=el.scrollHeight; }})();</script>'
-        ) % (escaped,)
-        with console_box:
-            components.html(html_block, height=240, scrolling=False)
-
-    # Initial console render
-    refresh_console()
-
     # Profiles
     labels = PROFILE_LABELS
     current_profile = normalize_profile(st.session_state.get("pc_profile", PCProfile.LOW))
@@ -128,17 +88,14 @@ def render_setup_tab():
     # Availability and management
     cli_ok = has_ollama_cli("ollama")
     if st.button("Check Ollama availability"):
-        append_console(f"GET {st.session_state['ollama_host'].rstrip('/')}/api/tags", st.session_state)
-        refresh_console()
+        print(f"GET {st.session_state['ollama_host'].rstrip('/')}/api/tags")
     ollama_ok, ollama_msg = ollama_is_running(st.session_state["ollama_host"])
     if ollama_ok:
         st.success("Ollama is running")
-        append_console("Ollama check: OK", st.session_state)
-        refresh_console()
+        print("Ollama check: OK")
     else:
         st.warning("Ollama not reachable")
-        append_console("Ollama check: " + ollama_msg, st.session_state)
-        refresh_console()
+        print("Ollama check:", ollama_msg)
 
     cols = st.columns(3)
     with cols[0]:
@@ -147,8 +104,7 @@ def render_setup_tab():
                 pb = st.progress(0, text="Installing Ollama...")
                 last_pct = 0
                 for line in install_ollama_user_local():
-                    append_console(str(line), st.session_state)
-                    refresh_console()
+                    print(str(line))
                     pct = parse_percent(str(line))
                     if pct is None:
                         last_pct = min(99, last_pct + 1)
@@ -160,32 +116,39 @@ def render_setup_tab():
             st.info("Ollama CLI detected")
 
     with cols[1]:
-        if st.button("Start Ollama"):
-            append_console("Running: ollama serve", st.session_state)
-            refresh_console()
+        if st.button("Start Ollama", key="btn_start_ollama"):
+            print("Running: ollama serve")
             ok, msg, _ = start_ollama_server("ollama")
-            append_console(msg, st.session_state)
-            refresh_console()
+            print(msg)
             if ok:
                 st.success("Starting Ollama server...")
             else:
                 st.error(msg)
+            st.rerun()
+
+        if st.button("Stop Ollama", key="btn_stop_ollama"):
+            ok, msg = stop_ollama_server(host=st.session_state["ollama_host"])
+            print(f"Stop Ollama: {msg}")
+            if ok:
+                st.success("Ollama stopped")
+            else:
+                st.warning(msg)
+            st.rerun()
 
     with cols[2]:
         if st.button("Quick test"):
             model = st.session_state.get("model") or "tinyllama:1.1b"
             payload = {"model": model, "prompt": 'Say "ready".', "stream": False}
             endpoint = f"{st.session_state['ollama_host'].rstrip('/')}/api/generate"
-            append_console(f"POST {endpoint} {payload}", st.session_state)
-            refresh_console()
+            print(f"POST {endpoint} {payload}")
             ok, resp = ollama_quick_test(model, host=st.session_state["ollama_host"])
             if ok:
                 st.success("Model ready")
-                append_console("Quick test OK: " + resp[:120], st.session_state)
+                if resp:
+                    print("Quick test OK:", resp[:120])
             else:
                 st.error("Model not ready")
-                append_console("Quick test failed: " + resp, st.session_state)
-            refresh_console()
+                print("Quick test failed:", resp)
 
     st.divider()
 
@@ -232,15 +195,13 @@ def render_setup_tab():
                         f"Running: ollama pull {model}" if cli_ok else
                         f"Running: POST {st.session_state['ollama_host'].rstrip('/')}/api/pull {{'name': '{model}', 'stream': True}}"
                     )
-                    append_console(cmd_log, st.session_state)
-                    refresh_console()
+                    print(cmd_log)
                     pb = st.progress(0, text=f"Pulling {model}...")
                     last_pct = 0
                     lines = pull_ollama_model(model) if cli_ok else pull_ollama_model_http(model, host=st.session_state["ollama_host"]) 
                     for line in lines:
                         text = str(line)
-                        append_console(text, st.session_state)
-                        refresh_console()
+                        print(text)
                         pct = parse_percent(text)
                         if pct is None:
                             last_pct = min(99, last_pct + 1)
@@ -255,7 +216,6 @@ def render_setup_tab():
                         st.session_state["model"] = ""
                     lines = delete_ollama_model(model) if cli_ok else delete_ollama_model_http(model, host=st.session_state["ollama_host"])
                     for line in lines:
-                        append_console(str(line), st.session_state)
-                        refresh_console()
+                        print(str(line))
                     st.rerun()
 
