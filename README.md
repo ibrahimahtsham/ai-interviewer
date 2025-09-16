@@ -26,5 +26,16 @@ streamlit run app.py
 
 Then open the URL that Streamlit prints (usually http://localhost:8501).
 
+## Features added
+- Interview flow with memory across turns
+- LLM Setup tab for Ollama management and model selection
+- STT Setup tab for Whisper model selection and a mic test
+- Transcript tab to review and clear the entire conversation
+
+Notes:
+- STT uses faster-whisper and may require ffmpeg installed on your system for some audio formats.
+	- Linux (Debian/Ubuntu): `sudo apt-get install ffmpeg`
+	- macOS (Homebrew): `brew install ffmpeg`
+
 ## Customize
 Open `app.py` and edit. Streamlit auto-reloads on save.
