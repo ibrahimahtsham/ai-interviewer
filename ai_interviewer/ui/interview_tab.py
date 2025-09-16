@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+import re
 import streamlit as st
 
 from ai_interviewer.llm import create_llm, ollama_is_running, ollama_list_models
@@ -12,9 +13,9 @@ from ai_interviewer import tts
 def build_system_prompt(job_role: str) -> str:
     role = job_role.strip() or "General Software Engineer"
     return (
-        "You are an AI interviewer. Always respond in English in a professional, concise manner. "
-        "You ask one question at a time and adapt follow-ups based on the candidate's answers. "
-        f"You are interviewing a candidate for the position of {role}. Start with a single strong opening question."
+        f"Role: {role}.\n"
+        "Ask one opening interview question.\n"
+        "Only the question; one sentence; <=25 words; end with '?'; no labels/preface/quotes/markdown/lists/explanations."
     )
 
 
@@ -38,7 +39,7 @@ def render_interview_tab():
         llm = create_llm("ollama", model, host=st.session_state["ollama_host"], timeout_s=int(st.session_state["timeout_s"]))
 
         system_prompt = build_system_prompt(job_role)
-        user_text = "Please start the interview with one opening question."
+        user_text = ("Only output the one-sentence question, nothing else.")
 
         out_container = st.empty()
         pb = st.progress(0, text="Generating...")
@@ -48,7 +49,6 @@ def render_interview_tab():
         try:
             for chunk in llm.stream_reply(system_prompt, user_text):
                 accum.append(chunk)
-                out_container.markdown(f"**Interviewer:** {''.join(accum)}")
                 progress_val = min(99, progress_val + 1)
                 pb.progress(progress_val, text="Generating...")
                 time.sleep(0.01)
@@ -57,13 +57,34 @@ def render_interview_tab():
             out_container.markdown(f"**Interviewer:** [LLM error: {e}]")
 
         reply = "".join(accum)
-        if reply:
-            st.session_state["messages"].append({"role": "assistant", "content": reply})
 
-        if reply and speak:
+        def extract_first_question(text: str) -> str:
+            t = text.strip().strip('`')
+            # Remove common speaker/label/filler prefixes
+            t = re.sub(r'^[>*\s]*?(Interviewer|Assistant|AI|System|Question|Output|Prompt|Role|Task)\s*:\s*', '', t, flags=re.I)
+            t = re.sub(r'^(Sure|Okay|Certainly|Absolutely|Great|Here(?: is|\'s)|Let\'s|Of course)[!,:-]*\s+', '', t, flags=re.I)
+            # Prefer quoted question if present
+            m = re.search(r'\"([^\"\n\r]+\?)\"', t)
+            if m:
+                return m.group(1).strip().strip('\\\"“”')
+            m = re.search(r'“([^”\n\r]+\?)”', t)
+            if m:
+                return m.group(1).strip()
+            # Fallback: up to first question mark
+            qpos = t.find('?')
+            if qpos != -1:
+                return t[: qpos + 1].strip().strip('\"“”')
+            return t
+
+        reply_clean = extract_first_question(reply)
+        if reply_clean:
+            out_container.markdown(f"**Interviewer:** {reply_clean}")
+            st.session_state.setdefault("messages", []).append({"role": "assistant", "content": reply_clean})
+
+        if reply_clean and speak:
             try:
                 out_path = str(Path(".cache/audio").joinpath("opening.wav"))
-                audio_path = tts.synthesize(reply, voice=None, out_path=out_path)
+                audio_path = tts.synthesize(reply_clean, voice=None, out_path=out_path)
                 if audio_path and Path(audio_path).exists():
                     with open(audio_path, "rb") as f:
                         st.audio(f.read(), format="audio/wav")
