@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+import html
+import urllib.parse
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ai_interviewer.llm import (
     has_ollama_cli,
@@ -33,7 +36,8 @@ CARD_CSS = """
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 14px;
-    background: var(--background-color, #111827);
+        background: var(--background-color, #111827);
+        cursor: pointer;
 }
 .border-green { border-color: #22c55e !important; }  /* green-500 */
 .border-yellow { border-color: #f59e0b !important; } /* amber-500 */
@@ -64,7 +68,14 @@ def render_setup_tab():
         console_box = st.empty()
 
     def refresh_console():
-        console_box.text_area("Output", value="\n".join(st.session_state.get("console", [])), height=220)
+        logs = "\n".join(st.session_state.get("console", []))
+        escaped = html.escape(logs)
+        html_block = (
+            '<div id="console-box" style="height:220px; overflow-y:auto; padding:8px; border:1px solid #374151; border-radius:6px; background: var(--background-color, #111827); color: var(--text-color, #e5e7eb); white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \'Liberation Mono\', \'Courier New\', monospace;">%s</div>'
+            '<script>(function(){var el=document.getElementById("console-box"); if(el){ el.scrollTop=el.scrollHeight; }})();</script>'
+        ) % (escaped,)
+        with console_box:
+            components.html(html_block, height=240, scrolling=False)
 
     # Initial console render
     refresh_console()
@@ -95,6 +106,29 @@ def render_setup_tab():
         default_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         ollama_host = st.text_input("Ollama host", value=st.session_state.get("ollama_host", default_host))
         st.session_state["ollama_host"] = ollama_host
+
+        # Handle card-click selection via query parameter
+        try:
+            # Preferred API if available
+            qp = st.query_params  # type: ignore[attr-defined]
+            sel = qp.get("select_model")
+            if sel:
+                st.session_state["model"] = sel
+                try:
+                    del st.query_params["select_model"]  # type: ignore[index]
+                except Exception:
+                    pass
+        except Exception:
+            # Fallback for older Streamlit
+            try:
+                qpe = st.experimental_get_query_params()
+                vals = qpe.get("select_model")
+                if isinstance(vals, list) and vals:
+                    st.session_state["model"] = vals[0]
+                    qpe.pop("select_model", None)
+                    st.experimental_set_query_params(**qpe)
+            except Exception:
+                pass
 
     # Availability and management
     cli_ok = has_ollama_cli("ollama")
@@ -185,12 +219,15 @@ def render_setup_tab():
             status = "selected" if selected else ("installed" if is_installed else "not installed")
             size_label = get_model_size_label(model)
 
+            link = f"?select_model={urllib.parse.quote_plus(model)}"
             st.markdown(
                 f"""
-                <div class=\"model-card {border_class}\">
-                  <div class=\"model-title\">{model}<span class=\"badge\">{status}</span></div>
-                  <div>Local model managed by Ollama.{(' Size: ' + size_label) if size_label else ''}</div>
-                </div>
+                <a href=\"{link}\" style=\"text-decoration:none; color: inherit;\">
+                  <div class=\"model-card {border_class}\">
+                    <div class=\"model-title\">{model}<span class=\"badge\">{status}</span></div>
+                    <div>Local model managed by Ollama.{(' Size: ' + size_label) if size_label else ''}</div>
+                  </div>
+                </a>
                 """,
                 unsafe_allow_html=True,
             )
