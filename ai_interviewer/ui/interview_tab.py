@@ -6,7 +6,8 @@ import re
 import streamlit as st
 
 from ai_interviewer.llm import create_llm, ollama_is_running, ollama_list_models
-from ai_interviewer.utils.ui import choose_model_for_profile
+from ai_interviewer.utils.model_catalog import choose_model_for_profile
+from ai_interviewer.utils.text import extract_first_question
 from ai_interviewer import tts
 
 
@@ -57,24 +58,6 @@ def render_interview_tab():
             out_container.markdown(f"**Interviewer:** [LLM error: {e}]")
 
         reply = "".join(accum)
-
-        def extract_first_question(text: str) -> str:
-            t = text.strip().strip('`')
-            # Remove common speaker/label/filler prefixes
-            t = re.sub(r'^[>*\s]*?(Interviewer|Assistant|AI|System|Question|Output|Prompt|Role|Task)\s*:\s*', '', t, flags=re.I)
-            t = re.sub(r'^(Sure|Okay|Certainly|Absolutely|Great|Here(?: is|\'s)|Let\'s|Of course)[!,:-]*\s+', '', t, flags=re.I)
-            # Prefer quoted question if present
-            m = re.search(r'\"([^\"\n\r]+\?)\"', t)
-            if m:
-                return m.group(1).strip().strip('\\\"“”')
-            m = re.search(r'“([^”\n\r]+\?)”', t)
-            if m:
-                return m.group(1).strip()
-            # Fallback: up to first question mark
-            qpos = t.find('?')
-            if qpos != -1:
-                return t[: qpos + 1].strip().strip('\"“”')
-            return t
 
         reply_clean = extract_first_question(reply)
         if reply_clean:

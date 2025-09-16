@@ -16,12 +16,12 @@ from ai_interviewer.llm import (
     delete_ollama_model,
     delete_ollama_model_http,
 )
-from ai_interviewer.utils.ui import (
+from ai_interviewer.utils.model_catalog import (
     pc_profile_model_candidates,
     choose_model_for_profile,
-    parse_percent,
     get_model_size_label,
 )
+from ai_interviewer.utils.progress import parse_percent
 from ai_interviewer.profiles import PCProfile, PROFILE_LABELS, normalize_profile
 
 

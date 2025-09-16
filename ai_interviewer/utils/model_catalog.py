@@ -1,8 +1,9 @@
 from __future__ import annotations
-import re
+
 from typing import List, Dict, Optional
 
 from ai_interviewer.profiles import PCProfile, normalize_profile
+
 
 # Approximate download sizes for common Ollama models (GB, quantized defaults).
 # These are estimates and can vary by quantization/build. Used for UI only.
@@ -49,14 +50,6 @@ def choose_model_for_profile(profile: PCProfile | str, installed: list[str]) -> 
         if s in installed:
             return s
     return suggestions[0] if suggestions else "tinyllama:1.1b"
-
-
-def parse_percent(line: str) -> int | None:
-    m = re.search(r"(\d{1,3})\s*%", line)
-    if not m:
-        return None
-    p = int(m.group(1))
-    return max(0, min(100, p))
 
 
 def get_model_size_gb(name: str) -> Optional[float]:
