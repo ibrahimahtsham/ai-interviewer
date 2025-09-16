@@ -8,7 +8,7 @@ from ai_interviewer.profiles import PCProfile, normalize_profile
 class Config:
     pc_profile: PCProfile = PCProfile.LOW
     llm_backend: str = "ollama"
-    llm_model: str = "llama3:8b"
+    llm_model: str = "tinyllama:1.1b"
     tts_voice: str = "default"
 
 
@@ -21,6 +21,6 @@ def load_config() -> Config:
     return Config(
         pc_profile=_map_legacy_profile(os.getenv("PC_PROFILE", PCProfile.LOW.value)),
         llm_backend=os.getenv("LLM_BACKEND", "ollama"),
-        llm_model=os.getenv("LLM_MODEL", "llama3:8b"),
+        llm_model=os.getenv("LLM_MODEL", "tinyllama:1.1b"),
         tts_voice=os.getenv("TTS_VOICE", "default"),
     )

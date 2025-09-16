@@ -173,7 +173,7 @@ def render_setup_tab():
 
     with cols[2]:
         if st.button("Quick test"):
-            model = st.session_state.get("model") or "llama3:8b"
+            model = st.session_state.get("model") or "tinyllama:1.1b"
             payload = {"model": model, "prompt": 'Say "ready".', "stream": False}
             endpoint = f"{st.session_state['ollama_host'].rstrip('/')}/api/generate"
             append_console(f"POST {endpoint} {payload}", st.session_state)

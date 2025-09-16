@@ -53,7 +53,7 @@ def choose_model_for_profile(profile: PCProfile | str, installed: list[str]) -> 
     for s in suggestions:
         if s in installed:
             return s
-    return suggestions[0] if suggestions else "llama3:8b"
+    return suggestions[0] if suggestions else "tinyllama:1.1b"
 
 
 def append_console(line: str, session_state) -> None:
