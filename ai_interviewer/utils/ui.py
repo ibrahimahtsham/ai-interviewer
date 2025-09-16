@@ -1,5 +1,10 @@
 from __future__ import annotations
 import re
+import sys
+import subprocess
+import shutil
+import platform
+from pathlib import Path
 from typing import List, Dict, Optional
 
 from ai_interviewer.profiles import PCProfile, normalize_profile
@@ -55,6 +60,18 @@ def append_console(line: str, session_state) -> None:
     lines = session_state.setdefault("console", [])
     lines.append(line)
     session_state["console"] = lines
+    # Mirror to server stdout (useful when running in a terminal)
+    try:
+        print(line, file=sys.stdout, flush=True)
+    except Exception:
+        pass
+    # Persist to log file for external console viewers
+    try:
+        log_path = session_state.get("console_log_path") or get_console_log_path(session_state)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line.rstrip() + "\n")
+    except Exception:
+        pass
 
 
 def parse_percent(line: str) -> int | None:
@@ -82,3 +99,53 @@ def get_model_size_label(name: str) -> Optional[str]:
     if size is None:
         return None
     return format_size_gb(size)
+
+
+def get_console_log_path(session_state=None) -> str:
+    base = Path(".cache") / "logs"
+    base.mkdir(parents=True, exist_ok=True)
+    log_path = base / "ollama_console.log"
+    if session_state is not None:
+        session_state["console_log_path"] = str(log_path)
+    return str(log_path)
+
+
+def open_external_console(log_path: Optional[str] = None) -> tuple[bool, str]:
+    """Open a native terminal window that tails the console log.
+
+    Returns (ok, message).
+    """
+    p = log_path or get_console_log_path(None)
+    Path(p).parent.mkdir(parents=True, exist_ok=True)
+    Path(p).touch(exist_ok=True)
+
+    system = platform.system().lower()
+    tail_cmd = f"tail -n +1 -f '{p}'"
+    try:
+        if system == "windows":
+            ps_cmd = f"Get-Content -Path '{p}' -Wait -Tail 20"
+            cmd = f'start "" powershell -NoExit -Command "{ps_cmd}"'
+            subprocess.Popen(cmd, shell=True)
+            return True, "Opened external console (PowerShell)."
+        elif system == "darwin":
+            osa = f'tell application "Terminal" to do script "{tail_cmd}"'
+            subprocess.Popen(["osascript", "-e", osa])
+            return True, "Opened external console (Terminal.app)."
+        else:
+            candidates = [
+                ("x-terminal-emulator", ["-e", "bash", "-lc", tail_cmd]),
+                ("gnome-terminal", ["--", "bash", "-lc", tail_cmd]),
+                ("konsole", ["-e", "bash", "-lc", tail_cmd]),
+                ("xfce4-terminal", ["-e", "bash", "-lc", tail_cmd]),
+                ("lxterminal", ["-e", "bash", "-lc", tail_cmd]),
+                ("mate-terminal", ["-e", "bash", "-lc", tail_cmd]),
+                ("alacritty", ["-e", "bash", "-lc", tail_cmd]),
+                ("xterm", ["-e", "bash", "-lc", tail_cmd]),
+            ]
+            for exe, args in candidates:
+                if shutil.which(exe):
+                    subprocess.Popen([exe, *args])
+                    return True, f"Opened external console ({exe})."
+            return False, "No supported terminal emulator found (install xterm/gnome-terminal/etc.)."
+    except Exception as e:
+        return False, f"Failed to open external console: {e}"

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import html
-import urllib.parse
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -24,6 +23,8 @@ from ai_interviewer.utils.ui import (
     append_console,
     parse_percent,
     get_model_size_label,
+    open_external_console,
+    get_console_log_path,
 )
 from ai_interviewer.profiles import PCProfile, PROFILE_LABELS, normalize_profile
 
@@ -61,13 +62,30 @@ def render_setup_tab():
     st.header("LLM Setup")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
 
-    # Live-updating console (place a placeholder early so long-running ops can stream output)
+    # Console controls and live output
     console_container = st.container()
     with console_container:
         st.subheader("Console")
+        cc1, cc2 = st.columns([1, 1])
+        with cc1:
+            st.checkbox("Show console in browser", key="show_browser_console", value=False)
+        with cc2:
+            if st.button("Open external console window"):
+                log_path = get_console_log_path(st.session_state)
+                ok, msg = open_external_console(log_path)
+                append_console(msg, st.session_state)
+                if ok:
+                    st.info(f"{msg} Log: {log_path}")
+                else:
+                    st.warning(msg)
         console_box = st.empty()
 
     def refresh_console():
+        if not st.session_state.get("show_browser_console", False):
+            path = get_console_log_path(st.session_state)
+            with console_box:
+                st.caption(f"Console is streaming to: {path}")
+            return
         logs = "\n".join(st.session_state.get("console", []))
         escaped = html.escape(logs)
         html_block = (
@@ -80,7 +98,7 @@ def render_setup_tab():
     # Initial console render
     refresh_console()
 
-    # Profiles (single source of truth via ai_interviewer.profiles)
+    # Profiles
     labels = PROFILE_LABELS
     current_profile = normalize_profile(st.session_state.get("pc_profile", PCProfile.LOW))
     try:
@@ -106,29 +124,6 @@ def render_setup_tab():
         default_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         ollama_host = st.text_input("Ollama host", value=st.session_state.get("ollama_host", default_host))
         st.session_state["ollama_host"] = ollama_host
-
-        # Handle card-click selection via query parameter
-        try:
-            # Preferred API if available
-            qp = st.query_params  # type: ignore[attr-defined]
-            sel = qp.get("select_model")
-            if sel:
-                st.session_state["model"] = sel
-                try:
-                    del st.query_params["select_model"]  # type: ignore[index]
-                except Exception:
-                    pass
-        except Exception:
-            # Fallback for older Streamlit
-            try:
-                qpe = st.experimental_get_query_params()
-                vals = qpe.get("select_model")
-                if isinstance(vals, list) and vals:
-                    st.session_state["model"] = vals[0]
-                    qpe.pop("select_model", None)
-                    st.experimental_set_query_params(**qpe)
-            except Exception:
-                pass
 
     # Availability and management
     cli_ok = has_ollama_cli("ollama")
@@ -200,12 +195,12 @@ def render_setup_tab():
         st.session_state["model"] = choose_model_for_profile(st.session_state["pc_profile"], installed)
 
     suggestions = pc_profile_model_candidates(st.session_state["pc_profile"])
-    all_models = []
+    all_models: list[str] = []
     for m in suggestions + installed:
         if m not in all_models:
             all_models.append(m)
 
-    # Render cards in a proper row/column grid to avoid staircase layout
+    # Render cards in rows
     cols_per_row = 3
     for i, model in enumerate(all_models):
         if i % cols_per_row == 0:
@@ -219,29 +214,23 @@ def render_setup_tab():
             status = "selected" if selected else ("installed" if is_installed else "not installed")
             size_label = get_model_size_label(model)
 
-            link = f"?select_model={urllib.parse.quote_plus(model)}"
             st.markdown(
                 f"""
-                <a href=\"{link}\" style=\"text-decoration:none; color: inherit;\">
-                  <div class=\"model-card {border_class}\">
-                    <div class=\"model-title\">{model}<span class=\"badge\">{status}</span></div>
-                    <div>Local model managed by Ollama.{(' Size: ' + size_label) if size_label else ''}</div>
-                  </div>
-                </a>
+                <div class=\"model-card {border_class}\">\n                  <div class=\"model-title\">{model}<span class=\"badge\">{status}</span></div>\n                  <div>Local model managed by Ollama.{(' Size: ' + size_label) if size_label else ''}</div>\n                </div>
                 """,
                 unsafe_allow_html=True,
             )
 
             btn_cols = st.columns(3)
             with btn_cols[0]:
-                if not selected and is_installed and st.button("Use", key=f"use_{model}"):
+                if not selected and st.button("Select", key=f"sel_{model}"):
                     st.session_state["model"] = model
                     st.success(f"Selected {model}")
             with btn_cols[1]:
                 if not is_installed and st.button("Download", key=f"dl_{model}"):
                     cmd_log = (
                         f"Running: ollama pull {model}" if cli_ok else
-                            f"Running: POST {st.session_state['ollama_host'].rstrip('/')}/api/pull {{'name': '{model}', 'stream': True}}"
+                        f"Running: POST {st.session_state['ollama_host'].rstrip('/')}/api/pull {{'name': '{model}', 'stream': True}}"
                     )
                     append_console(cmd_log, st.session_state)
                     refresh_console()
