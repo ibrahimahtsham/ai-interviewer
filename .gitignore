@@ -1,6 +1,62 @@
+# Python bytecode / caches
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
 .venv/
+venv/
+ENV/
+env/
+.conda/
+pip-wheel-metadata/
+
+# Streamlit & app caches
 .streamlit/
 .cache/
+
+# Logs
+*.log
+logs/
+log/
+
+# Build / distribution artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Media/artifacts (generated outputs)
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.opus
+*.webm
+*.mp4
+*.mov
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Editors / OS
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db

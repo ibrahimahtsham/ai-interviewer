@@ -9,6 +9,7 @@ from ai_interviewer.llm import create_llm, ollama_is_running, ollama_list_models
 from ai_interviewer.utils.model_catalog import choose_model_for_profile
 from ai_interviewer.utils.text import extract_first_question
 from ai_interviewer import tts
+from ai_interviewer.utils.log import info, warn, error, success, debug
 
 
 def build_system_prompt(job_role: str) -> str:
@@ -44,15 +45,15 @@ def render_interview_tab():
 
         # --- Debug logging: exact inputs going to the LLM ---
         try:
-            print("=== LLM CALL ===", flush=True)
-            print(f"Model: {model}", flush=True)
-            print(f"Host: {st.session_state['ollama_host']}", flush=True)
-            print("=== SYSTEM PROMPT ===", flush=True)
-            print(system_prompt, flush=True)
-            print("=== USER PROMPT ===", flush=True)
-            print(user_text, flush=True)
+            info("=== LLM CALL ===")
+            info(f"Model: {model}")
+            info(f"Host: {st.session_state['ollama_host']}")
+            info("=== SYSTEM PROMPT ===")
+            info(system_prompt)
+            info("=== USER PROMPT ===")
+            info(user_text)
         except Exception:
-            # Printing should never break the UI
+            # Logging should never break the UI
             pass
 
         out_container = st.empty()
@@ -70,7 +71,7 @@ def render_interview_tab():
         except Exception as e:
             out_container.markdown(f"**Interviewer:** [LLM error: {e}]")
             try:
-                print("[LLM error]", e, flush=True)
+                error(f"LLM error: {e}")
             except Exception:
                 pass
 
@@ -78,16 +79,16 @@ def render_interview_tab():
 
         # --- Debug logging: raw model output ---
         try:
-            print("=== RAW LLM OUTPUT ===", flush=True)
-            print(reply, flush=True)
+            info("=== RAW LLM OUTPUT ===")
+            info(reply)
         except Exception:
             pass
 
         reply_clean = extract_first_question(reply)
         # --- Debug logging: extracted/cleaned question ---
         try:
-            print("=== EXTRACTED QUESTION ===", flush=True)
-            print(reply_clean, flush=True)
+            success("=== EXTRACTED QUESTION ===")
+            success(reply_clean)
         except Exception:
             pass
         if reply_clean:

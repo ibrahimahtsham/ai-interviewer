@@ -23,6 +23,7 @@ from ai_interviewer.utils.model_catalog import (
 )
 from ai_interviewer.utils.progress import parse_percent
 from ai_interviewer.profiles import PCProfile, PROFILE_LABELS, normalize_profile
+from ai_interviewer.utils.log import info, warn, error, success, debug
 
 
 CARD_CSS = """
@@ -88,14 +89,14 @@ def render_setup_tab():
     # Availability and management
     cli_ok = has_ollama_cli("ollama")
     if st.button("Check Ollama availability"):
-        print(f"GET {st.session_state['ollama_host'].rstrip('/')}/api/tags")
+        info(f"GET {st.session_state['ollama_host'].rstrip('/')}/api/tags")
     ollama_ok, ollama_msg = ollama_is_running(st.session_state["ollama_host"])
     if ollama_ok:
         st.success("Ollama is running")
-        print("Ollama check: OK")
+        success("Ollama check: OK")
     else:
         st.warning("Ollama not reachable")
-        print("Ollama check:", ollama_msg)
+        warn(f"Ollama check: {ollama_msg}")
 
     cols = st.columns(3)
     with cols[0]:
@@ -104,7 +105,7 @@ def render_setup_tab():
                 pb = st.progress(0, text="Installing Ollama...")
                 last_pct = 0
                 for line in install_ollama_user_local():
-                    print(str(line))
+                    info(str(line))
                     pct = parse_percent(str(line))
                     if pct is None:
                         last_pct = min(99, last_pct + 1)
@@ -117,9 +118,9 @@ def render_setup_tab():
 
     with cols[1]:
         if st.button("Start Ollama", key="btn_start_ollama"):
-            print("Running: ollama serve")
+            info("Running: ollama serve")
             ok, msg, _ = start_ollama_server("ollama")
-            print(msg)
+            info(msg)
             if ok:
                 st.success("Starting Ollama server...")
             else:
@@ -128,7 +129,7 @@ def render_setup_tab():
 
         if st.button("Stop Ollama", key="btn_stop_ollama"):
             ok, msg = stop_ollama_server(host=st.session_state["ollama_host"])
-            print(f"Stop Ollama: {msg}")
+            info(f"Stop Ollama: {msg}")
             if ok:
                 st.success("Ollama stopped")
             else:
@@ -140,15 +141,15 @@ def render_setup_tab():
             model = st.session_state.get("model") or "tinyllama:1.1b"
             payload = {"model": model, "prompt": 'Say "ready".', "stream": False}
             endpoint = f"{st.session_state['ollama_host'].rstrip('/')}/api/generate"
-            print(f"POST {endpoint} {payload}")
+            info(f"POST {endpoint} {payload}")
             ok, resp = ollama_quick_test(model, host=st.session_state["ollama_host"])
             if ok:
                 st.success("Model ready")
                 if resp:
-                    print("Quick test OK:", resp[:120])
+                    success(f"Quick test OK: {resp[:120]}")
             else:
                 st.error("Model not ready")
-                print("Quick test failed:", resp)
+                error(f"Quick test failed: {resp}")
 
     st.divider()
 
@@ -195,13 +196,13 @@ def render_setup_tab():
                         f"Running: ollama pull {model}" if cli_ok else
                         f"Running: POST {st.session_state['ollama_host'].rstrip('/')}/api/pull {{'name': '{model}', 'stream': True}}"
                     )
-                    print(cmd_log)
+                    info(cmd_log)
                     pb = st.progress(0, text=f"Pulling {model}...")
                     last_pct = 0
                     lines = pull_ollama_model(model) if cli_ok else pull_ollama_model_http(model, host=st.session_state["ollama_host"]) 
                     for line in lines:
                         text = str(line)
-                        print(text)
+                        info(text)
                         pct = parse_percent(text)
                         if pct is None:
                             last_pct = min(99, last_pct + 1)
@@ -216,6 +217,6 @@ def render_setup_tab():
                         st.session_state["model"] = ""
                     lines = delete_ollama_model(model) if cli_ok else delete_ollama_model_http(model, host=st.session_state["ollama_host"])
                     for line in lines:
-                        print(str(line))
+                        info(str(line))
                     st.rerun()
 
