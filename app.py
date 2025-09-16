@@ -2,6 +2,7 @@ import os
 import streamlit as st
 
 from ai_interviewer.config import load_config
+from ai_interviewer.profiles import normalize_profile
 from ai_interviewer.ui.setup_tab import render_setup_tab
 from ai_interviewer.ui.interview_tab import render_interview_tab
 
@@ -13,7 +14,7 @@ def main():
 	cfg = load_config()
 
 	# Session defaults
-	st.session_state.setdefault("pc_profile", cfg.pc_profile)
+	st.session_state.setdefault("pc_profile", normalize_profile(cfg.pc_profile))
 	st.session_state.setdefault("ollama_host", os.getenv("OLLAMA_HOST", "http://localhost:11434"))
 	st.session_state.setdefault("timeout_s", int(os.getenv("OLLAMA_TIMEOUT", "600")))
 	st.session_state.setdefault("model", cfg.llm_model)

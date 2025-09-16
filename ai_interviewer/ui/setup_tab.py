@@ -20,7 +20,9 @@ from ai_interviewer.utils.ui import (
     choose_model_for_profile,
     append_console,
     parse_percent,
+    get_model_size_label,
 )
+from ai_interviewer.profiles import PCProfile, PROFILE_LABELS, normalize_profile
 
 
 CARD_CSS = """
@@ -55,26 +57,39 @@ def render_setup_tab():
     st.header("LLM Setup")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
 
-    # Profiles
-    labels = ["low-end pc", "mid specs", "high end pc"]
-    current = st.session_state.get("pc_profile", "low-end pc")
+    # Live-updating console (place a placeholder early so long-running ops can stream output)
+    console_container = st.container()
+    with console_container:
+        st.subheader("Console")
+        console_box = st.empty()
+
+    def refresh_console():
+        console_box.text_area("Output", value="\n".join(st.session_state.get("console", [])), height=220)
+
+    # Initial console render
+    refresh_console()
+
+    # Profiles (single source of truth via ai_interviewer.profiles)
+    labels = PROFILE_LABELS
+    current_profile = normalize_profile(st.session_state.get("pc_profile", PCProfile.LOW))
     try:
-        idx = labels.index(current)
+        idx = labels.index(current_profile.value)
     except ValueError:
         idx = 0
 
     colA, colB = st.columns(2)
     with colA:
-        pc_profile = st.selectbox(
+        selected_label = st.selectbox(
             "Your PC profile",
             options=labels,
             index=idx,
             help="Auto-selects a suitable model.",
         )
-        if pc_profile != st.session_state.get("pc_profile"):
-            st.session_state["pc_profile"] = pc_profile
+        selected_profile = next(p for p in PCProfile if p.value == selected_label)
+        if selected_profile != normalize_profile(st.session_state.get("pc_profile")):
+            st.session_state["pc_profile"] = selected_profile
             installed_now = ollama_list_models(st.session_state.get("ollama_host", "http://localhost:11434"))
-            st.session_state["model"] = choose_model_for_profile(pc_profile, installed_now)
+            st.session_state["model"] = choose_model_for_profile(selected_profile, installed_now)
 
     with colB:
         default_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -85,13 +100,16 @@ def render_setup_tab():
     cli_ok = has_ollama_cli("ollama")
     if st.button("Check Ollama availability"):
         append_console(f"GET {st.session_state['ollama_host'].rstrip('/')}/api/tags", st.session_state)
+        refresh_console()
     ollama_ok, ollama_msg = ollama_is_running(st.session_state["ollama_host"])
     if ollama_ok:
         st.success("Ollama is running")
         append_console("Ollama check: OK", st.session_state)
+        refresh_console()
     else:
         st.warning("Ollama not reachable")
         append_console("Ollama check: " + ollama_msg, st.session_state)
+        refresh_console()
 
     cols = st.columns(3)
     with cols[0]:
@@ -101,6 +119,7 @@ def render_setup_tab():
                 last_pct = 0
                 for line in install_ollama_user_local():
                     append_console(str(line), st.session_state)
+                    refresh_console()
                     pct = parse_percent(str(line))
                     if pct is None:
                         last_pct = min(99, last_pct + 1)
@@ -114,8 +133,10 @@ def render_setup_tab():
     with cols[1]:
         if st.button("Start Ollama"):
             append_console("Running: ollama serve", st.session_state)
+            refresh_console()
             ok, msg, _ = start_ollama_server("ollama")
             append_console(msg, st.session_state)
+            refresh_console()
             if ok:
                 st.success("Starting Ollama server...")
             else:
@@ -127,6 +148,7 @@ def render_setup_tab():
             payload = {"model": model, "prompt": 'Say "ready".', "stream": False}
             endpoint = f"{st.session_state['ollama_host'].rstrip('/')}/api/generate"
             append_console(f"POST {endpoint} {payload}", st.session_state)
+            refresh_console()
             ok, resp = ollama_quick_test(model, host=st.session_state["ollama_host"])
             if ok:
                 st.success("Model ready")
@@ -134,6 +156,7 @@ def render_setup_tab():
             else:
                 st.error("Model not ready")
                 append_console("Quick test failed: " + resp, st.session_state)
+            refresh_console()
 
     st.divider()
 
@@ -148,22 +171,25 @@ def render_setup_tab():
         if m not in all_models:
             all_models.append(m)
 
-    # Render cards in 3-column grid
+    # Render cards in a proper row/column grid to avoid staircase layout
     cols_per_row = 3
     for i, model in enumerate(all_models):
-        col = st.columns(cols_per_row)[i % cols_per_row]
+        if i % cols_per_row == 0:
+            row_cols = st.columns(cols_per_row)
+        col = row_cols[i % cols_per_row]
         with col:
             selected = st.session_state.get("model") == model
             is_installed = model in installed
 
             border_class = "border-green" if selected else ("border-yellow" if is_installed else "border-red")
             status = "selected" if selected else ("installed" if is_installed else "not installed")
+            size_label = get_model_size_label(model)
 
             st.markdown(
                 f"""
-                <div class="model-card {border_class}">
-                  <div class="model-title">{model}<span class="badge">{status}</span></div>
-                  <div>Local model managed by Ollama.</div>
+                <div class=\"model-card {border_class}\">
+                  <div class=\"model-title\">{model}<span class=\"badge\">{status}</span></div>
+                  <div>Local model managed by Ollama.{(' Size: ' + size_label) if size_label else ''}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -181,12 +207,14 @@ def render_setup_tab():
                             f"Running: POST {st.session_state['ollama_host'].rstrip('/')}/api/pull {{'name': '{model}', 'stream': True}}"
                     )
                     append_console(cmd_log, st.session_state)
+                    refresh_console()
                     pb = st.progress(0, text=f"Pulling {model}...")
                     last_pct = 0
                     lines = pull_ollama_model(model) if cli_ok else pull_ollama_model_http(model, host=st.session_state["ollama_host"]) 
                     for line in lines:
                         text = str(line)
                         append_console(text, st.session_state)
+                        refresh_console()
                         pct = parse_percent(text)
                         if pct is None:
                             last_pct = min(99, last_pct + 1)
@@ -202,7 +230,6 @@ def render_setup_tab():
                     lines = delete_ollama_model(model) if cli_ok else delete_ollama_model_http(model, host=st.session_state["ollama_host"])
                     for line in lines:
                         append_console(str(line), st.session_state)
+                        refresh_console()
                     st.rerun()
 
-    st.subheader("Console")
-    st.text_area("Output", value="\n".join(st.session_state.get("console", [])), height=220)
