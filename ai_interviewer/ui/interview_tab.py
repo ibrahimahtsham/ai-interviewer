@@ -42,6 +42,19 @@ def render_interview_tab():
         system_prompt = build_system_prompt(job_role)
         user_text = ("Only output the one-sentence question, nothing else.")
 
+        # --- Debug logging: exact inputs going to the LLM ---
+        try:
+            print("=== LLM CALL ===", flush=True)
+            print(f"Model: {model}", flush=True)
+            print(f"Host: {st.session_state['ollama_host']}", flush=True)
+            print("=== SYSTEM PROMPT ===", flush=True)
+            print(system_prompt, flush=True)
+            print("=== USER PROMPT ===", flush=True)
+            print(user_text, flush=True)
+        except Exception:
+            # Printing should never break the UI
+            pass
+
         out_container = st.empty()
         pb = st.progress(0, text="Generating...")
         accum = []
@@ -56,10 +69,27 @@ def render_interview_tab():
             pb.progress(100, text="Done.")
         except Exception as e:
             out_container.markdown(f"**Interviewer:** [LLM error: {e}]")
+            try:
+                print("[LLM error]", e, flush=True)
+            except Exception:
+                pass
 
         reply = "".join(accum)
 
+        # --- Debug logging: raw model output ---
+        try:
+            print("=== RAW LLM OUTPUT ===", flush=True)
+            print(reply, flush=True)
+        except Exception:
+            pass
+
         reply_clean = extract_first_question(reply)
+        # --- Debug logging: extracted/cleaned question ---
+        try:
+            print("=== EXTRACTED QUESTION ===", flush=True)
+            print(reply_clean, flush=True)
+        except Exception:
+            pass
         if reply_clean:
             out_container.markdown(f"**Interviewer:** {reply_clean}")
             st.session_state.setdefault("messages", []).append({"role": "assistant", "content": reply_clean})
