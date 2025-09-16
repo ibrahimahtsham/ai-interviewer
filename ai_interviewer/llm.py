@@ -2,16 +2,16 @@
 
 Exposes a simple interface:
     - LLM.generate_reply(system_prompt: str, user_text: str) -> str
+    - LLM.stream_reply(system_prompt: str, user_text: str) -> Iterator[str]
 
 Backends:
-    - DummyLLM: returns a canned interviewer-style response
     - OllamaLLM: calls local Ollama HTTP API (ollama serve)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Iterator
 import subprocess
 import shutil
 import time
@@ -29,17 +29,8 @@ except Exception:  # pragma: no cover - optional import at runtime
 class LLM:
     def generate_reply(self, system_prompt: str, user_text: str) -> str:  # pragma: no cover - interface only
         raise NotImplementedError
-
-
-@dataclass
-class DummyLLM(LLM):
-    model: str = "dummy"
-
-    def generate_reply(self, system_prompt: str, user_text: str) -> str:
-        return (
-            "Thanks for your response. Let's begin. Could you briefly walk me through "
-            "a recent project relevant to this role and highlight your specific contributions?"
-        )
+    def stream_reply(self, system_prompt: str, user_text: str) -> Iterator[str]:  # pragma: no cover - interface only
+        raise NotImplementedError
 
 
 @dataclass
@@ -92,16 +83,40 @@ class OllamaLLM(LLM):
         except Exception as e:
             return f"[LLM error: {e}]"
 
+    def stream_reply(self, system_prompt: str, user_text: str) -> Iterator[str]:
+        if requests is None:
+            raise RuntimeError("'requests' package not installed; required for Ollama backend")
+        url = f"{self.host.rstrip('/')}/api/generate"
+        payload = {
+            "model": self.model,
+            "system": system_prompt,
+            "prompt": user_text,
+            "stream": True,
+            "options": {"temperature": 0.7},
+        }
+        with requests.post(url, json=payload, stream=True, timeout=self.req_timeout) as r:
+            r.raise_for_status()
+            for line in r.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    j = json.loads(line)
+                except Exception:
+                    continue
+                chunk = j.get("response")
+                if isinstance(chunk, str) and chunk:
+                    yield chunk
+
 
 def create_llm(backend: str, model: str, host: Optional[str] = None, timeout_s: Optional[int] = None) -> LLM:
     backend = (backend or "").lower()
-    if backend == "ollama":
-        return OllamaLLM(
-            model=model,
-            host=(host or os.getenv("OLLAMA_HOST", "http://localhost:11434")),
-            req_timeout=int(timeout_s or os.getenv("OLLAMA_TIMEOUT", "600")),
-        )
-    return DummyLLM(model="dummy")
+    if backend not in {"ollama", ""}:
+        raise ValueError(f"Unsupported LLM backend: {backend}. Only 'ollama' is supported.")
+    return OllamaLLM(
+        model=model,
+        host=(host or os.getenv("OLLAMA_HOST", "http://localhost:11434")),
+        req_timeout=int(timeout_s or os.getenv("OLLAMA_TIMEOUT", "600")),
+    )
 
 
 # --- Ollama utilities ---
@@ -194,6 +209,7 @@ def pull_ollama_model(model: str, cmd: Optional[str] = None):
         yield f"'{ollama_cmd}' CLI not found or not executable"
         return
     try:
+        yield f"Running: {ollama_cmd} pull {model}"
         proc = subprocess.Popen(
             [ollama_cmd, "pull", model],
             stdout=subprocess.PIPE,
@@ -225,22 +241,65 @@ def pull_ollama_model_http(model: str, host: Optional[str] = None):
         return
     url = f"{h}/api/pull"
     try:
+        yield f"Running: POST {url} {{'name': '{model}', 'stream': True}}"
         with requests.post(url, json={"name": model, "stream": True}, stream=True, timeout=600) as r:
             r.raise_for_status()
             for line in r.iter_lines(decode_unicode=True):
                 if not line:
                     continue
-                try:
-                    j = json.loads(line)
-                    # Ollama sends fields like status, digest, total, completed
-                    status = j.get("status")
-                    if status:
-                        yield status
-                except Exception:
-                    yield str(line)
+                # Yield the raw line from the server (JSON line)
+                yield line
         yield f"Model '{model}' pull complete (HTTP)."
     except Exception as e:
         yield f"HTTP pull error: {e}"
+
+
+def delete_ollama_model(model: str, cmd: Optional[str] = None):
+    """Generator yielding output while deleting a model via CLI."""
+    ollama_cmd = (cmd or "ollama").strip()
+    if not has_ollama_cli(ollama_cmd):
+        yield f"'{ollama_cmd}' CLI not found or not executable"
+        return
+    try:
+        yield f"Running: {ollama_cmd} rm {model}"
+        proc = subprocess.Popen(
+            [ollama_cmd, "rm", model],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            yield line.rstrip()
+        proc.wait()
+        if proc.returncode == 0:
+            yield f"Model '{model}' deleted successfully."
+        else:
+            yield f"ollama rm exited with code {proc.returncode}"
+    except FileNotFoundError:
+        yield "'ollama' CLI not found in PATH"
+    except Exception as e:
+        yield f"Error deleting model: {e}"
+
+
+def delete_ollama_model_http(model: str, host: Optional[str] = None):
+    """Generator yielding output while deleting a model via HTTP API."""
+    h = (host or os.getenv("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
+    if requests is None:
+        yield "'requests' not installed; cannot delete via HTTP"
+        return
+    url = f"{h}/api/delete"
+    try:
+        yield f"Running: POST {url} {{'name': '{model}'}}"
+        r = requests.post(url, json={"name": model}, timeout=30)
+        yield f"Response: {r.status_code} {r.text}"
+        if r.status_code == 200:
+            yield f"Model '{model}' deleted (HTTP)."
+        else:
+            yield f"HTTP delete returned {r.status_code}"
+    except Exception as e:
+        yield f"HTTP delete error: {e}"
 
 
 def _detect_linux_arch() -> Optional[str]:
