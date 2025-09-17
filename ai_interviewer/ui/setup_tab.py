@@ -100,19 +100,26 @@ def render_setup_tab():
 
     cols = st.columns(3)
     with cols[0]:
+        # Platform-aware install guidance
         if not cli_ok:
-            if st.button("Install Ollama (user)"):
-                pb = st.progress(0, text="Installing Ollama...")
-                last_pct = 0
-                for line in install_ollama_user_local():
-                    info(str(line))
-                    pct = parse_percent(str(line))
-                    if pct is None:
-                        last_pct = min(99, last_pct + 1)
-                        pb.progress(last_pct, text="Installing Ollama...")
-                    else:
-                        pb.progress(pct, text=f"Installing Ollama... {pct}%")
-                pb.progress(100, text="Ollama install complete.")
+            if os.name != "nt":
+                if st.button("Install Ollama (Linux user)"):
+                    pb = st.progress(0, text="Installing Ollama...")
+                    last_pct = 0
+                    for line in install_ollama_user_local():
+                        info(str(line))
+                        pct = parse_percent(str(line))
+                        if pct is None:
+                            last_pct = min(99, last_pct + 1)
+                            pb.progress(last_pct, text="Installing Ollama...")
+                        else:
+                            pb.progress(pct, text=f"Installing Ollama... {pct}%")
+                    pb.progress(100, text="Ollama install complete.")
+            else:
+                st.markdown("**Windows detected** – use the official installer:")
+                st.code("winget install Ollama.Ollama", language="powershell")
+                if st.button("I installed Ollama – recheck"):
+                    st.rerun()
         else:
             st.info("Ollama CLI detected")
 

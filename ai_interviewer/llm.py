@@ -493,6 +493,13 @@ def install_ollama_user_local(target_dir: Optional[str] = None):
     Downloads from GitHub releases and writes to ~/.local/bin/ollama by default.
     Yields progress lines. Returns the final path at the end.
     """
+    # Windows: we currently do not support automatic install; provide guidance and exit early.
+    if os.name == "nt":
+        yield "Windows detected: skipping automatic download."
+        yield "Please install Ollama using the official Windows installer or winget:"
+        yield "  winget install Ollama.Ollama"
+        yield "After installation ensure 'ollama.exe' is in your PATH and running (ollama serve)."
+        return
     if requests is None:
         yield "'requests' not installed; cannot download Ollama binary"
         return
