@@ -59,8 +59,20 @@ def _get_model(name: str, compute_type: str = "int8"):
 
     if name in _loaded_models:
         return _loaded_models[name]
-    # Auto device selects GPU if available
-    m = WhisperModel(name, device="auto", compute_type=compute_type)
+    # Try auto (GPU if available); gracefully fallback to CPU if CUDA/cuBLAS missing
+    try:
+        m = WhisperModel(name, device="auto", compute_type=compute_type)
+    except Exception as e:  # pragma: no cover - environment specific
+        msg = str(e).lower()
+        if ("cublas" in msg) or ("cuda" in msg):
+            try:
+                from ai_interviewer.utils.log import warn
+                warn("CUDA/cuBLAS not available; falling back to CPU for STT.")
+            except Exception:
+                pass
+            m = WhisperModel(name, device="cpu", compute_type=compute_type)
+        else:
+            raise
     _loaded_models[name] = m
     return m
 
